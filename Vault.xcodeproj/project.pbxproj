@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A17F00012FD9B1000017A502 /* VaultSecurity in Frameworks */ = {isa = PBXBuildFile; productRef = A17F00002FD9B1000017A502 /* VaultSecurity */; };
+		A17F00032FD9B1000017A502 /* VaultStorage in Frameworks */ = {isa = PBXBuildFile; productRef = A17F00022FD9B1000017A502 /* VaultStorage */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		1A1F968F2FD9AFBF0017A502 /* Vault.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vault.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +28,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A17F00012FD9B1000017A502 /* VaultSecurity in Frameworks */,
+				A17F00032FD9B1000017A502 /* VaultStorage in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +72,8 @@
 			);
 			name = Vault;
 			packageProductDependencies = (
+				A17F00002FD9B1000017A502 /* VaultSecurity */,
+				A17F00022FD9B1000017A502 /* VaultStorage */,
 			);
 			productName = Vault;
 			productReference = 1A1F968F2FD9AFBF0017A502 /* Vault.app */;
@@ -94,6 +103,10 @@
 			);
 			mainGroup = 1A1F96862FD9AFBE0017A502;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A17F00042FD9B1000017A502 /* XCLocalSwiftPackageReference "../Packages/VaultSecurity" */,
+				A17F00052FD9B1000017A502 /* XCLocalSwiftPackageReference "../Packages/VaultStorage" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1A1F96902FD9AFBF0017A502 /* Products */;
 			projectDirPath = "";
@@ -256,6 +269,7 @@
 				DEVELOPMENT_TEAM = X2X5Z864A6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Vault uses device authentication to unlock your data.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -288,6 +302,7 @@
 				DEVELOPMENT_TEAM = X2X5Z864A6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Vault uses device authentication to unlock your data.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -332,6 +347,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A17F00042FD9B1000017A502 /* XCLocalSwiftPackageReference "../Packages/VaultSecurity" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/VaultSecurity;
+		};
+		A17F00052FD9B1000017A502 /* XCLocalSwiftPackageReference "../Packages/VaultStorage" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/VaultStorage;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A17F00002FD9B1000017A502 /* VaultSecurity */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A17F00042FD9B1000017A502 /* XCLocalSwiftPackageReference "../Packages/VaultSecurity" */;
+			productName = VaultSecurity;
+		};
+		A17F00022FD9B1000017A502 /* VaultStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A17F00052FD9B1000017A502 /* XCLocalSwiftPackageReference "../Packages/VaultStorage" */;
+			productName = VaultStorage;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 1A1F96872FD9AFBF0017A502 /* Project object */;
 }

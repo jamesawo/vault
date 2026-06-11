@@ -9,9 +9,23 @@ import SwiftUI
 
 @main
 struct VaultApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var appState = AppState()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            AppScreen()
+                .environment(appState)
+                .onChange(of: scenePhase, initial: true) { _, newPhase in
+                    switch newPhase {
+                    case .active:
+                        break
+                    case .inactive, .background:
+                        appState.lock()
+                    @unknown default:
+                        appState.lock()
+                    }
+                }
         }
     }
 }

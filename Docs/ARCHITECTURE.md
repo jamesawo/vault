@@ -1,6 +1,6 @@
 # Vault Architecture
 
-## Why the app is organized by feature
+## How app is organized
 
 Vault is organized by feature so that each part of the product can own its own UI, state, and behavior.
 

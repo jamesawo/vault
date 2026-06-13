@@ -16,6 +16,7 @@ final class UnlockState {
     private let authenticationService: AuthenticationService
 
     @ObservationIgnored
+    /// Monotonically increasing token used to ignore stale async authentication results after reset or a newer attempt starts.
     private var authenticationAttempt = 0
 
     init(authenticationService: AuthenticationService = AuthenticationService()) {

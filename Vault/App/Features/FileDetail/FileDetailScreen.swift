@@ -37,7 +37,7 @@ struct FileDetailScreen: View {
                 LabeledContent("Created Date", value: state.item.createdAt.formatted(date: .abbreviated, time: .shortened))
                 LabeledContent("Original Type", value: originalType)
             } header: {
-                SectionHeader(title: "Details")
+                FileDetailSectionHeader(title: "Details")
             }
 
             Section {
@@ -55,7 +55,7 @@ struct FileDetailScreen: View {
                     state.isShowingDeleteConfirmation = true
                 }
             } header: {
-                SectionHeader(title: "Actions")
+                FileDetailSectionHeader(title: "Actions")
             }
         }
         .navigationTitle(state.item.displayName)
@@ -102,7 +102,7 @@ struct FileDetailScreen: View {
             }
         }
         .sheet(item: $state.shareDocument) { document in
-            ActivityView(activityItems: [document.url])
+            FileDetailActivityView(activityItems: [document.url])
         }
         .task(id: state.item.collectionId) {
             state.loadCollectionName()
@@ -122,5 +122,16 @@ struct FileDetailScreen: View {
                 createdAt: .now
             )
         )
+    }
+}
+
+private struct FileDetailSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.headline)
+            .textCase(.uppercase)
+            .foregroundStyle(.secondary)
     }
 }

@@ -7,16 +7,17 @@ struct CollectionPreviewState: Equatable {
     var itemID: String
 }
 
+/// Coordinates root app state such as lock status, authentication, and app-level navigation.
 @MainActor
 @Observable
 final class AppState {
     var navigationPath = NavigationPath()
     var collectionPreview: CollectionPreviewState?
+    var isUnlocked = false
     var authenticationMessage: String?
     var isAuthenticating = false
     var authenticationTrigger = 0
     var unlockMethod: AuthenticationService.UnlockMethod = .standard
-    let vaultSession = VaultSessionState()
 
     @ObservationIgnored
     private var playbackPositions: [String: Double] = [:]
@@ -29,7 +30,7 @@ final class AppState {
     }
 
     func authenticate() async {
-        guard !isAuthenticating, !vaultSession.isUnlocked else {
+        guard !isAuthenticating, !isUnlocked else {
             return
         }
 
@@ -52,13 +53,13 @@ final class AppState {
                 return
             }
 
-            vaultSession.isUnlocked = true
+            isUnlocked = true
         } catch let authenticationError as AuthenticationService.AuthenticationError {
             guard currentAttempt == authenticationAttempt else {
                 return
             }
 
-            vaultSession.isUnlocked = false
+            isUnlocked = false
             switch authenticationError {
             case .cancelled:
                 authenticationMessage = nil
@@ -70,7 +71,7 @@ final class AppState {
                 return
             }
 
-            vaultSession.isUnlocked = false
+            isUnlocked = false
             authenticationMessage = error.localizedDescription
         }
     }
@@ -78,13 +79,13 @@ final class AppState {
     func lock() {
         authenticationAttempt += 1
 
-        vaultSession.isUnlocked = false
+        isUnlocked = false
         isAuthenticating = false
         authenticationMessage = nil
     }
 
     func sceneDidBecomeActive() {
-        guard !vaultSession.isUnlocked, !isAuthenticating else {
+        guard !isUnlocked, !isAuthenticating else {
             return
         }
 

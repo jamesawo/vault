@@ -1,13 +1,14 @@
 import SwiftUI
 import VaultStorage
 
+/// Renders the root app flow and switches between the locked and unlocked experiences.
 struct AppScreen: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
         @Bindable var appState = appState
 
-        if appState.vaultSession.isUnlocked {
+        if appState.isUnlocked {
             NavigationStack(path: $appState.navigationPath) {
                 HomeScreen()
                     .navigationDestination(for: AppRoute.self) { route in
@@ -46,7 +47,7 @@ private struct AppScreenPreview: View {
         AppScreen()
             .environment(appState)
             .task {
-                appState.vaultSession.isUnlocked = true
+                appState.isUnlocked = true
             }
     }
 }

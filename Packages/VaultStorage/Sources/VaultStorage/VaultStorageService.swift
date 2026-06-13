@@ -8,25 +8,39 @@ public enum VaultSharedConfiguration {
 public struct Collection: Codable, Equatable, Hashable, Identifiable, Sendable {
     public let id: String
     public let name: String
+    public let parentCollectionId: String?
     public let createdAt: Date
+    public let updatedAt: Date
 
-    public init(id: String, name: String, createdAt: Date) {
+    public init(
+        id: String,
+        name: String,
+        parentCollectionId: String? = nil,
+        createdAt: Date,
+        updatedAt: Date? = nil
+    ) {
         self.id = id
         self.name = name
+        self.parentCollectionId = parentCollectionId
         self.createdAt = createdAt
+        self.updatedAt = updatedAt ?? createdAt
     }
 
     private enum CodingKeys: String, CodingKey {
         case id
         case name
+        case parentCollectionId
         case createdAt
+        case updatedAt
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
+        parentCollectionId = try container.decodeIfPresent(String.self, forKey: .parentCollectionId)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date(timeIntervalSince1970: 0)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
     }
 }
 
@@ -64,6 +78,8 @@ public final class VaultStorageService {
         case duplicateCollectionName(name: String)
         case duplicateItem(id: String)
         case invalidCollectionName
+        case invalidCollectionParent(id: String)
+        case collectionNotEmpty(id: String)
         case missingCollection(id: String)
         case missingItem(id: String)
         case invalidItemsFile
@@ -78,6 +94,10 @@ public final class VaultStorageService {
                 return "An item with id '\(id)' already exists."
             case .invalidCollectionName:
                 return "Collection names cannot be empty."
+            case let .invalidCollectionParent(id):
+                return "No parent collection with id '\(id)' exists."
+            case .collectionNotEmpty:
+                return "This collection must be empty before it can be deleted."
             case let .missingCollection(id):
                 return "No collection with id '\(id)' exists."
             case let .missingItem(id):
@@ -141,7 +161,13 @@ public final class VaultStorageService {
         try createStarterCollectionIfNeeded()
     }
 
-    public func createCollection(id: String, name: String, createdAt: Date = Date()) throws -> Collection {
+    public func createCollection(
+        id: String,
+        name: String,
+        parentCollectionId: String? = nil,
+        createdAt: Date = Date(),
+        updatedAt: Date? = nil
+    ) throws -> Collection {
         var collections = try listCollections()
         let normalizedName = normalizeCollectionName(name)
 
@@ -153,11 +179,25 @@ public final class VaultStorageService {
             throw StorageError.duplicateCollection(id: id)
         }
 
-        guard !collections.contains(where: { $0.name.localizedCaseInsensitiveCompare(normalizedName) == .orderedSame }) else {
+        if let parentCollectionId,
+           !collections.contains(where: { $0.id == parentCollectionId }) {
+            throw StorageError.invalidCollectionParent(id: parentCollectionId)
+        }
+
+        guard !collections.contains(where: {
+            $0.parentCollectionId == parentCollectionId &&
+            $0.name.localizedCaseInsensitiveCompare(normalizedName) == .orderedSame
+        }) else {
             throw StorageError.duplicateCollectionName(name: normalizedName)
         }
 
-        let collection = Collection(id: id, name: normalizedName, createdAt: createdAt)
+        let collection = Collection(
+            id: id,
+            name: normalizedName,
+            parentCollectionId: parentCollectionId,
+            createdAt: createdAt,
+            updatedAt: updatedAt ?? createdAt
+        )
         collections.append(collection)
         try writeCollections(collections)
         return collection
@@ -259,17 +299,22 @@ public final class VaultStorageService {
             throw StorageError.missingCollection(id: id)
         }
 
+        let existingCollection = collections[collectionIndex]
+
         guard !collections.contains(where: {
-            $0.id != id && $0.name.localizedCaseInsensitiveCompare(normalizedName) == .orderedSame
+            $0.id != id &&
+            $0.parentCollectionId == existingCollection.parentCollectionId &&
+            $0.name.localizedCaseInsensitiveCompare(normalizedName) == .orderedSame
         }) else {
             throw StorageError.duplicateCollectionName(name: normalizedName)
         }
 
-        let existingCollection = collections[collectionIndex]
         let updatedCollection = Collection(
             id: existingCollection.id,
             name: normalizedName,
-            createdAt: existingCollection.createdAt
+            parentCollectionId: existingCollection.parentCollectionId,
+            createdAt: existingCollection.createdAt,
+            updatedAt: Date()
         )
         collections[collectionIndex] = updatedCollection
         try writeCollections(collections)
@@ -277,24 +322,45 @@ public final class VaultStorageService {
     }
 
     public func deleteCollection(id: String) throws {
-        var collections = try listCollections()
+        let collections = try listCollections()
         guard collections.contains(where: { $0.id == id }) else {
             throw StorageError.missingCollection(id: id)
         }
 
-        let itemsToDelete = try listItems().filter { $0.collectionId == id }
-        collections.removeAll { $0.id == id }
-        try writeCollections(collections)
+        let items = try listItems()
+        let hasChildCollections = collections.contains(where: { $0.parentCollectionId == id })
+        let hasItems = items.contains(where: { $0.collectionId == id })
 
-        let remainingItems = try listItems().filter { $0.collectionId != id }
-        try writeItems(remainingItems)
-
-        for item in itemsToDelete {
-            let encryptedFileURL = filesDirectoryURL.appendingPathComponent(item.encryptedFileName)
-            if fileManager.fileExists(atPath: encryptedFileURL.path) {
-                try fileManager.removeItem(at: encryptedFileURL)
-            }
+        guard !hasChildCollections, !hasItems else {
+            throw StorageError.collectionNotEmpty(id: id)
         }
+
+        try writeCollections(collections.filter { $0.id != id })
+    }
+
+    public func moveItem(id: String, to collectionID: String) throws -> VaultItem {
+        guard try listCollections().contains(where: { $0.id == collectionID }) else {
+            throw StorageError.missingCollection(id: collectionID)
+        }
+
+        var items = try listItems()
+        guard let itemIndex = items.firstIndex(where: { $0.id == id }) else {
+            throw StorageError.missingItem(id: id)
+        }
+
+        let existingItem = items[itemIndex]
+        let movedItem = VaultItem(
+            id: existingItem.id,
+            displayName: existingItem.displayName,
+            collectionId: collectionID,
+            encryptedFileName: existingItem.encryptedFileName,
+            size: existingItem.size,
+            createdAt: existingItem.createdAt
+        )
+
+        items[itemIndex] = movedItem
+        try writeItems(items)
+        return movedItem
     }
 
     private func createStorageIfNeeded() throws {
@@ -322,6 +388,7 @@ public final class VaultStorageService {
                 Collection(
                     id: Self.starterCollectionID,
                     name: Self.starterCollectionName,
+                    parentCollectionId: nil,
                     createdAt: Date(timeIntervalSince1970: 0)
                 )
             )

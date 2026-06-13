@@ -28,7 +28,22 @@ struct VaultStorageServiceTests {
         let collections = try service.listCollections()
 
         #expect(collections.contains(collection))
+        #expect(collection.parentCollectionId == nil)
+        #expect(collection.updatedAt == collection.createdAt)
         #expect(collections.contains(where: { $0.id == VaultStorageService.starterCollectionID }))
+    }
+
+    @Test
+    func createsSubCollectionsAndAllowsDuplicateNamesUnderDifferentParents() throws {
+        let service = try VaultStorageService(rootDirectoryURL: try makeTemporaryDirectory())
+        let family = try service.createCollection(id: "family", name: "Family")
+        let finance = try service.createCollection(id: "finance", name: "Finance")
+
+        let fatherHousing = try service.createCollection(id: "family-housing", name: "Housing", parentCollectionId: family.id)
+        let financeHousing = try service.createCollection(id: "finance-housing", name: "Housing", parentCollectionId: finance.id)
+
+        #expect(fatherHousing.parentCollectionId == family.id)
+        #expect(financeHousing.parentCollectionId == finance.id)
     }
 
     @Test
@@ -163,7 +178,10 @@ struct VaultStorageServiceTests {
     func renamesCollectionAndRejectsDuplicateNames() throws {
         let service = try VaultStorageService(rootDirectoryURL: try makeTemporaryDirectory())
         let createdCollection = try service.createCollection(id: "alpha", name: "Alpha")
-        _ = try service.createCollection(id: "beta", name: "Beta")
+        let beta = try service.createCollection(id: "beta", name: "Beta")
+        let childAlpha = try service.createCollection(id: "alpha-child", name: "Alpha Child", parentCollectionId: createdCollection.id)
+        _ = try service.createCollection(id: "alpha-sibling", name: "Beta Child", parentCollectionId: createdCollection.id)
+        _ = try service.createCollection(id: "beta-child", name: "Beta Child", parentCollectionId: beta.id)
 
         let renamedCollection = try service.renameCollection(id: createdCollection.id, newName: "Gamma")
 
@@ -172,13 +190,19 @@ struct VaultStorageServiceTests {
         #expect(throws: VaultStorageService.StorageError.duplicateCollectionName(name: "Beta")) {
             try service.renameCollection(id: createdCollection.id, newName: "Beta")
         }
+        #expect(throws: VaultStorageService.StorageError.duplicateCollectionName(name: "Beta Child")) {
+            try service.renameCollection(id: childAlpha.id, newName: "Beta Child")
+        }
+
+        let renamedChild = try service.renameCollection(id: childAlpha.id, newName: "Alpha")
+        #expect(renamedChild.parentCollectionId == createdCollection.id)
     }
 
     @Test
-    func deletesCollectionItemsAndEncryptedFiles() throws {
-        let rootDirectoryURL = try makeTemporaryDirectory()
-        let service = try VaultStorageService(rootDirectoryURL: rootDirectoryURL)
-        _ = try service.createCollection(id: "alpha", name: "Alpha")
+    func blocksDeletingNonEmptyCollectionsAndAllowsDeletingEmptyCollections() throws {
+        let service = try VaultStorageService(rootDirectoryURL: try makeTemporaryDirectory())
+        let alpha = try service.createCollection(id: "alpha", name: "Alpha")
+        let child = try service.createCollection(id: "child", name: "Child", parentCollectionId: alpha.id)
 
         let item = VaultItem(
             id: "alpha-file",
@@ -190,13 +214,37 @@ struct VaultStorageServiceTests {
         )
 
         try service.appendItem(item)
-        try Data("encrypted".utf8).write(to: service.filesDirectoryURL.appendingPathComponent(item.encryptedFileName))
 
-        try service.deleteCollection(id: "alpha")
+        #expect(throws: VaultStorageService.StorageError.collectionNotEmpty(id: "alpha")) {
+            try service.deleteCollection(id: "alpha")
+        }
 
-        #expect(try service.collection(id: "alpha") == nil)
-        #expect(!(try service.listItems().contains { $0.id == item.id }))
-        #expect(!FileManager.default.fileExists(atPath: service.filesDirectoryURL.appendingPathComponent(item.encryptedFileName).path))
+        try service.deleteCollection(id: child.id)
+        #expect(try service.collection(id: child.id) == nil)
+    }
+
+    @Test
+    func movesItemsBetweenCollectionsWithoutDuplicatingThem() throws {
+        let service = try VaultStorageService(rootDirectoryURL: try makeTemporaryDirectory())
+        _ = try service.createCollection(id: "alpha", name: "Alpha")
+        _ = try service.createCollection(id: "beta", name: "Beta")
+
+        let item = VaultItem(
+            id: "alpha-file",
+            displayName: "Attachment.pdf",
+            collectionId: "alpha",
+            encryptedFileName: "alpha-file.enc",
+            size: 1_024,
+            createdAt: Date(timeIntervalSince1970: 1_781_092_800)
+        )
+
+        try service.appendItem(item)
+        let movedItem = try service.moveItem(id: item.id, to: "beta")
+        let items = try service.listItems()
+
+        #expect(movedItem.collectionId == "beta")
+        #expect(items.count == 1)
+        #expect(items.first?.collectionId == "beta")
     }
 
     private func makeTemporaryDirectory() throws -> URL {

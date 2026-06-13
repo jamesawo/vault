@@ -26,11 +26,13 @@ final class CollectionFileInteractionState {
     }
 }
 
-/// Owns collection detail state, file list behavior, and collection-level actions.
+/// Owns collection detail state, hierarchy behavior, file list behavior, and collection-level actions.
 @MainActor
 @Observable
 final class CollectionDetailState {
     var currentCollection: Collection
+    var collectionPath: [Collection] = []
+    var childCollections: [CollectionSummary] = []
     var items: [VaultItem] = []
     var searchText = ""
     var errorMessage: String?
@@ -41,6 +43,11 @@ final class CollectionDetailState {
     var fileInteractions = CollectionFileInteractionState()
     var itemPendingDeletion: VaultItem?
     var isShowingImportPicker = false
+    var isShowingCreateSubcollectionPrompt = false
+    var newSubcollectionName = ""
+    var itemPendingMove: VaultItem?
+    var moveDestinations: [CollectionMoveDestination] = []
+    var isShowingMoveDestinationPicker = false
 
     @ObservationIgnored
     private let service: CollectionsService
@@ -48,6 +55,14 @@ final class CollectionDetailState {
     init(collection: Collection, service: CollectionsService = CollectionsService()) {
         currentCollection = collection
         self.service = service
+    }
+
+    var filteredChildCollections: [CollectionSummary] {
+        guard !searchText.isEmpty else {
+            return childCollections
+        }
+
+        return childCollections.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
 
     var filteredItems: [VaultItem] {
@@ -58,15 +73,31 @@ final class CollectionDetailState {
         return items.filter { $0.displayName.localizedCaseInsensitiveContains(searchText) }
     }
 
+    var breadcrumbText: String {
+        collectionPath.map(\.name).joined(separator: " > ")
+    }
+
+    var maximumHierarchyDepth: Int {
+        service.maximumHierarchyDepth
+    }
+
+    var currentDepth: Int {
+        collectionPath.isEmpty ? 1 : collectionPath.count
+    }
+
+    var canCreateSubcollection: Bool {
+        currentDepth < maximumHierarchyDepth
+    }
+
     func loadItems() {
         do {
             errorMessage = nil
 
-            if let refreshedCollection = try service.collection(id: currentCollection.id) {
-                currentCollection = refreshedCollection
-            }
-
-            items = try service.loadItems(in: currentCollection.id)
+            let content = try service.loadCollectionDetailContent(for: currentCollection.id)
+            currentCollection = content.collection
+            collectionPath = content.path
+            childCollections = content.childCollections
+            items = content.items
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -86,6 +117,26 @@ final class CollectionDetailState {
         }
     }
 
+    func beginCreateSubcollection() {
+        guard canCreateSubcollection else {
+            errorMessage = CollectionsServiceError.maximumDepthReached(maximumDepth: maximumHierarchyDepth).localizedDescription
+            return
+        }
+
+        newSubcollectionName = ""
+        isShowingCreateSubcollectionPrompt = true
+    }
+
+    func createSubcollection() {
+        do {
+            _ = try service.createCollection(named: newSubcollectionName, parentCollectionID: currentCollection.id)
+            newSubcollectionName = ""
+            loadItems()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func beginRenameCollection() {
         renamedCollectionName = currentCollection.name
         isShowingRenamePrompt = true
@@ -94,6 +145,7 @@ final class CollectionDetailState {
     func renameCollection() {
         do {
             currentCollection = try service.renameCollection(id: currentCollection.id, newName: renamedCollectionName)
+            loadItems()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -124,6 +176,36 @@ final class CollectionDetailState {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func beginMove(_ item: VaultItem) {
+        do {
+            moveDestinations = try service.loadMoveDestinations(excluding: currentCollection.id)
+            itemPendingMove = item
+            isShowingMoveDestinationPicker = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func movePendingItem(to destination: CollectionMoveDestination) {
+        guard let itemPendingMove else {
+            return
+        }
+
+        do {
+            _ = try service.moveItem(itemPendingMove, to: destination.id)
+            self.itemPendingMove = nil
+            isShowingMoveDestinationPicker = false
+            loadItems()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func dismissMovePicker() {
+        isShowingMoveDestinationPicker = false
+        itemPendingMove = nil
     }
 
     func dismissError() {

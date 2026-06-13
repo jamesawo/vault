@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import VaultStorage
 
-/// Renders collection detail UI and forwards collection/file actions to `CollectionDetailState`.
+/// Renders collection detail UI and forwards collection hierarchy and file actions to `CollectionDetailState`.
 struct CollectionDetailScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
@@ -59,19 +59,44 @@ struct CollectionDetailScreen: View {
         )
     }
 
+    private var isShowingMovePicker: Binding<Bool> {
+        Binding(
+            get: { state.isShowingMoveDestinationPicker },
+            set: { isPresented in
+                if !isPresented {
+                    state.dismissMovePicker()
+                }
+            }
+        )
+    }
+
     var body: some View {
         @Bindable var state = state
 
+        let displayedChildCollections = state.filteredChildCollections
         let displayedItems = state.filteredItems
 
         let baseView = AnyView(
             List {
-                filesSection(displayedItems)
+                breadcrumbSection
+
+                if !displayedChildCollections.isEmpty {
+                    childCollectionsSection(displayedChildCollections)
+                }
+
+                if !displayedItems.isEmpty {
+                    filesSection(displayedItems)
+                }
             }
             .navigationTitle(state.currentCollection.name)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button("Add Sub-collection") {
+                            state.beginCreateSubcollection()
+                        }
+                        .disabled(!state.canCreateSubcollection)
+
                         Button("Import File") {
                             state.isShowingImportPicker = true
                         }
@@ -97,13 +122,13 @@ struct CollectionDetailScreen: View {
                     ProgressView("Working…")
                         .padding()
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-                } else if displayedItems.isEmpty, state.errorMessage == nil {
+                } else if displayedChildCollections.isEmpty, displayedItems.isEmpty, state.errorMessage == nil {
                     ContentUnavailableView(
-                        state.searchText.isEmpty ? "No Files" : "No Results",
-                        systemImage: "doc",
+                        state.searchText.isEmpty ? "Empty Collection" : "No Results",
+                        systemImage: "folder",
                         description: Text(
                             state.searchText.isEmpty
-                                ? "Files imported into \(state.currentCollection.name) will appear here."
+                                ? "Sub-collections and imported files will appear here."
                                 : "Try a different search term."
                         )
                     )
@@ -137,8 +162,20 @@ struct CollectionDetailScreen: View {
             }
         )
 
+        let createSubcollectionAlertView = AnyView(
+            renameAlertView.alert("Add Sub-collection", isPresented: $state.isShowingCreateSubcollectionPrompt) {
+                TextField("Sub-collection Name", text: $state.newSubcollectionName)
+                Button("Create") {
+                    state.createSubcollection()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Collections can be nested up to \(state.maximumHierarchyDepth) levels.")
+            }
+        )
+
         let deleteCollectionAlertView = AnyView(
-            renameAlertView.alert("Delete Collection?", isPresented: $state.isShowingDeleteConfirmation) {
+            createSubcollectionAlertView.alert("Delete Collection?", isPresented: $state.isShowingDeleteConfirmation) {
                 Button("Delete", role: .destructive) {
                     state.deleteCollection {
                         dismiss()
@@ -146,7 +183,7 @@ struct CollectionDetailScreen: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Deleting a collection will permanently remove all files stored inside it. This action cannot be undone.")
+                Text("Only empty collections can be deleted. Remove any sub-collections and files first.")
             }
         )
 
@@ -196,8 +233,23 @@ struct CollectionDetailScreen: View {
             }
         )
 
+        let movePickerView = AnyView(
+            sharingView.sheet(isPresented: isShowingMovePicker) {
+                CollectionMoveDestinationPicker(
+                    itemName: state.itemPendingMove?.displayName ?? "File",
+                    destinations: state.moveDestinations,
+                    onSelect: { destination in
+                        state.movePendingItem(to: destination)
+                    },
+                    onDismiss: {
+                        state.dismissMovePicker()
+                    }
+                )
+            }
+        )
+
         return AnyView(
-            sharingView.alert("File Unavailable", isPresented: isShowingFileError) {
+            movePickerView.alert("File Unavailable", isPresented: isShowingFileError) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(state.fileInteractions.errorMessage ?? "")
@@ -213,6 +265,35 @@ struct CollectionDetailScreen: View {
                 state.updatePreviewAvailability(in: appState)
             }
         )
+    }
+
+    private var breadcrumbSection: some View {
+        Section {
+            Text(state.breadcrumbText)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+        }
+    }
+
+    @ViewBuilder
+    private func childCollectionsSection(_ collections: [CollectionSummary]) -> some View {
+        Section {
+            ForEach(collections) { collection in
+                NavigationLink(value: AppRoute.collection(collection.collection)) {
+                    HStack {
+                        Label(collection.name, systemImage: "folder")
+                        Spacer()
+                        if collection.itemCount > 0 {
+                            Text("\(collection.itemCount)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        } header: {
+            CollectionsSectionHeader(title: "Collections")
+        }
     }
 
     @ViewBuilder
@@ -231,12 +312,14 @@ struct CollectionDetailScreen: View {
             List {
                 Section {
                     LabeledContent("Collection", value: state.currentCollection.name)
+                    LabeledContent("Path", value: state.breadcrumbText)
+                    LabeledContent("Sub-collections", value: "\(state.childCollections.count)")
                     LabeledContent("Files", value: "\(state.items.count)")
                     LabeledContent("Created", value: state.currentCollection.createdAt.formatted(date: .abbreviated, time: .omitted))
                 }
 
                 Section {
-                    Text("Deleting a collection removes the collection and every file inside it after confirmation.")
+                    Text("Collections can contain sub-collections and files. Only empty collections can be deleted.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -259,6 +342,7 @@ struct CollectionDetailScreen: View {
             onOpen: { state.openPreview(in: appState, item: item) },
             onInfo: { appState.navigationPath.append(AppRoute.file(item)) },
             onShare: { state.fileInteractions.share(item) },
+            onMove: { state.beginMove(item) },
             onDelete: { state.confirmDelete(item) }
         )
     }
@@ -280,6 +364,7 @@ private struct CollectionFileRowView: View {
     let onOpen: () -> Void
     let onInfo: () -> Void
     let onShare: () -> Void
+    let onMove: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
@@ -303,11 +388,42 @@ private struct CollectionFileRowView: View {
             Button("Open", action: onOpen)
             Button("Preview Info", action: onInfo)
             Button("Share", action: onShare)
-
-            Button("Move") {}
-                .disabled(true)
-
+            Button("Move", action: onMove)
             Button("Delete", role: .destructive, action: onDelete)
+        }
+    }
+}
+
+private struct CollectionMoveDestinationPicker: View {
+    let itemName: String
+    let destinations: [CollectionMoveDestination]
+    let onSelect: (CollectionMoveDestination) -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List(destinations) { destination in
+                Button {
+                    onSelect(destination)
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(destination.displayName)
+                            .foregroundStyle(.primary)
+                        Text(destination.fullPath)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Move \(itemName)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        onDismiss()
+                    }
+                }
+            }
         }
     }
 }

@@ -30,7 +30,7 @@ final class CollectionsState {
     func loadCollections() {
         do {
             errorMessage = nil
-            collectionSummaries = try service.loadCollectionSummaries()
+            collectionSummaries = try service.loadRootCollectionSummaries()
         } catch {
             errorMessage = error.localizedDescription
         }

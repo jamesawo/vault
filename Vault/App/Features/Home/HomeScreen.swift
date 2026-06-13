@@ -169,13 +169,44 @@ struct HomeScreen: View {
         let collection = summary.collection
 
         NavigationLink(value: AppRoute.collection(collection)) {
-            HStack {
-                Text(summary.name)
+            HStack(spacing: 16) {
+                Image(systemName: "folder")
+                    .font(.system(size: 28, weight: .regular))
+                    .foregroundStyle(.blue)
+                    .frame(width: 36, height: 36)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(summary.name)
+                        .foregroundStyle(.primary)
+
+                    HStack(spacing: 16) {
+                        countLabel(systemName: "doc", count: summary.itemCount)
+
+                        if summary.childCollectionCount > 0 {
+                            countLabel(systemName: "folder", count: summary.childCollectionCount)
+                        }
+                    }
+                }
+
                 Spacer()
-                Text("\(summary.itemCount)")
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
         }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func countLabel(systemName: String, count: Int) -> some View {
+        Label {
+            Text("\(count)")
+        } icon: {
+            Image(systemName: systemName)
+        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
     }
 }
 

@@ -71,6 +71,14 @@ The collections feature owns:
 - collection-related state
 - collection-related business operations
 
+Collections can now contain other collections.
+
+- the main collections screen shows only root collections
+- sub-collections appear inside their parent collection
+- files belong to one collection at a time
+- nesting is limited to 3 levels
+- sharing is not part of the sub-collection feature
+
 ### FileDetail
 
 The file detail feature owns:

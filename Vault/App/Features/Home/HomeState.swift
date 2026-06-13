@@ -21,6 +21,13 @@ final class HomeState {
 
     let allowedContentTypes: [UTType] = [.item]
 
+    @ObservationIgnored
+    private let collectionsService: CollectionsService
+
+    init(collectionsService: CollectionsService = CollectionsService()) {
+        self.collectionsService = collectionsService
+    }
+
     var filteredCollectionSummaries: [CollectionSummary] {
         guard !searchText.isEmpty else {
             return collectionSummaries
@@ -66,23 +73,15 @@ final class HomeState {
     func loadContent() {
         do {
             contentErrorMessage = nil
-            let storageService = try VaultStorageService(
-                appGroupIdentifier: VaultSharedConfiguration.appGroupIdentifier
-            )
-            let collections = try storageService.listCollections()
-            let items = try storageService.listItems()
-
-            collectionSummaries = collections
-                .map { collection in
-                    CollectionSummary(
-                        id: collection.id,
-                        collection: collection,
-                        itemCount: items.filter { $0.collectionId == collection.id }.count
-                    )
-                }
+            collectionSummaries = try collectionsService
+                .loadRootCollectionSummaries()
                 .sorted { lhs, rhs in
                     if lhs.itemCount != rhs.itemCount {
                         return lhs.itemCount > rhs.itemCount
+                    }
+
+                    if lhs.childCollectionCount != rhs.childCollectionCount {
+                        return lhs.childCollectionCount > rhs.childCollectionCount
                     }
 
                     if lhs.name != rhs.name {
@@ -154,13 +153,7 @@ final class HomeState {
     }
 
     func createCollection(named name: String) throws -> Collection {
-        let storageService = try VaultStorageService(
-            appGroupIdentifier: VaultSharedConfiguration.appGroupIdentifier
-        )
-        let collection = try storageService.createCollection(
-            id: UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(),
-            name: name
-        )
+        let collection = try collectionsService.createCollection(named: name)
         loadContent()
         return collection
     }

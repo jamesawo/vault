@@ -16,11 +16,16 @@ struct VaultApp: App {
         WindowGroup {
             AppScreen()
                 .environment(appState)
-                .onChange(of: scenePhase, initial: true) { _, newPhase in
+                .task {
+                    appState.sceneDidBecomeActive()
+                }
+                .onChange(of: scenePhase) { _, newPhase in
                     switch newPhase {
                     case .active:
+                        appState.sceneDidBecomeActive()
+                    case .inactive:
                         break
-                    case .inactive, .background:
+                    case .background:
                         appState.lock()
                     @unknown default:
                         appState.lock()

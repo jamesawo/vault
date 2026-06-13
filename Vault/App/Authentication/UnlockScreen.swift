@@ -1,9 +1,11 @@
 import SwiftUI
+import VaultSecurity
 
 struct UnlockScreen: View {
     let message: String?
     let isAuthenticating: Bool
-    let shouldAutoAuthenticate: Bool
+    let authenticationTrigger: Int
+    let unlockMethod: AuthenticationService.UnlockMethod
     let onUnlock: () async -> Void
 
     var body: some View {
@@ -17,17 +19,6 @@ struct UnlockScreen: View {
             VStack(spacing: 12) {
                 Text("Unlock Vault")
                     .font(.largeTitle.bold())
-
-                Text("Authenticate with your device credentials to continue.")
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-
-                if let message {
-                    Text(message)
-                        .font(.subheadline)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                }
             }
 
             Button {
@@ -39,7 +30,7 @@ struct UnlockScreen: View {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                 } else {
-                    Text("Authenticate")
+                    Text(unlockMethod == .faceID ? "Unlock with Face ID" : "Unlock")
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -50,8 +41,10 @@ struct UnlockScreen: View {
             Spacer()
         }
         .padding(24)
-        .task(id: shouldAutoAuthenticate) {
-            guard shouldAutoAuthenticate, !isAuthenticating, message == nil else {
+        .task(id: authenticationTrigger) {
+            let trigger = authenticationTrigger
+
+            guard trigger > 0, !isAuthenticating, message == nil else {
                 return
             }
 
@@ -61,5 +54,11 @@ struct UnlockScreen: View {
 }
 
 #Preview {
-    UnlockScreen(message: nil, isAuthenticating: false, shouldAutoAuthenticate: true, onUnlock: {})
+    UnlockScreen(
+        message: nil,
+        isAuthenticating: false,
+        authenticationTrigger: 1,
+        unlockMethod: .faceID,
+        onUnlock: {}
+    )
 }

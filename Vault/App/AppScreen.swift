@@ -1,7 +1,7 @@
 import SwiftUI
+import VaultStorage
 
 struct AppScreen: View {
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(AppState.self) private var appState
 
     var body: some View {
@@ -14,10 +14,12 @@ struct AppScreen: View {
                         switch route {
                         case .collections:
                             CollectionsScreen()
-                        case .search:
-                            SearchScreen()
                         case .settings:
                             SettingsScreen()
+                        case let .collection(collection):
+                            CollectionDetailScreen(collection: collection)
+                        case let .file(item):
+                            FileDetailScreen(item: item)
                         }
                     }
             }
@@ -25,7 +27,8 @@ struct AppScreen: View {
             UnlockScreen(
                 message: appState.authenticationMessage,
                 isAuthenticating: appState.isAuthenticating,
-                shouldAutoAuthenticate: scenePhase == .active,
+                authenticationTrigger: appState.authenticationTrigger,
+                unlockMethod: appState.unlockMethod,
                 onUnlock: { await appState.authenticate() }
             )
         }
@@ -33,9 +36,17 @@ struct AppScreen: View {
 }
 
 #Preview {
-    let appState = AppState()
-    appState.vaultSession.isUnlocked = true
+    AppScreenPreview()
+}
 
-    AppScreen()
-        .environment(appState)
+private struct AppScreenPreview: View {
+    @State private var appState = AppState()
+
+    var body: some View {
+        AppScreen()
+            .environment(appState)
+            .task {
+                appState.vaultSession.isUnlocked = true
+            }
+    }
 }

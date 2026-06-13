@@ -103,7 +103,7 @@ struct CollectionFilePreviewScreen: View {
             await loadCurrentDocument()
         }
         .sheet(item: $shareDocument) { document in
-            ActivityView(activityItems: [document.url])
+            CollectionsActivityView(activityItems: [document.url])
         }
         .alert("File Unavailable", isPresented: Binding(
             get: { errorMessage != nil },

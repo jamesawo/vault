@@ -192,7 +192,7 @@ struct CollectionDetailScreen: View {
 
         let sharingView = AnyView(
             previewView.sheet(item: $state.fileInteractions.shareDocument) { document in
-                ActivityView(activityItems: [document.url])
+                CollectionsActivityView(activityItems: [document.url])
             }
         )
 
@@ -222,7 +222,7 @@ struct CollectionDetailScreen: View {
                 fileRow(item)
             }
         } header: {
-            SectionHeader(title: "Files")
+            CollectionsSectionHeader(title: "Files")
         }
     }
 
@@ -264,6 +264,17 @@ struct CollectionDetailScreen: View {
     }
 }
 
+private struct CollectionsSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.headline)
+            .textCase(.uppercase)
+            .foregroundStyle(.secondary)
+    }
+}
+
 private struct CollectionFileRowView: View {
     let item: VaultItem
     let onOpen: () -> Void
@@ -274,7 +285,7 @@ private struct CollectionFileRowView: View {
     var body: some View {
         Button(action: onOpen) {
             HStack(spacing: 12) {
-                VaultFileThumbnailView(item: item, size: 52)
+                CollectionFileThumbnailView(item: item, size: 52)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.displayName)

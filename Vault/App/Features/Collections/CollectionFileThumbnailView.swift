@@ -3,7 +3,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 import VaultStorage
 
-struct VaultFileThumbnailView: View {
+struct CollectionFileThumbnailView: View {
+    @Environment(\.displayScale) private var displayScale
+
     let item: VaultItem
     let size: CGFloat
 
@@ -60,11 +62,10 @@ struct VaultFileThumbnailView: View {
         do {
             let fileDetailService = try FileDetailService()
             let fileURL = try fileDetailService.preparedDocument(for: item).url
-            let scale = await MainActor.run { UIScreen.main.scale }
             let request = QLThumbnailGenerator.Request(
                 fileAt: fileURL,
-                size: CGSize(width: size * scale, height: size * scale),
-                scale: scale,
+                size: CGSize(width: size * displayScale, height: size * displayScale),
+                scale: displayScale,
                 representationTypes: .thumbnail
             )
 

@@ -1,7 +1,9 @@
 import SwiftUI
+import VaultStorage
 
 enum AppRoute: Hashable {
     case collections
-    case search
     case settings
+    case collection(Collection)
+    case file(VaultItem)
 }

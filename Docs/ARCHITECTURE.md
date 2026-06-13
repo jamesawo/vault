@@ -32,7 +32,6 @@ It also owns the top-level route mapping from `AppRoute` values to feature scree
 It is responsible for:
 
 - whether the vault is locked or unlocked
-- authentication progress
 - route navigation state
 - app lifecycle lock behavior
 - preview coordination that must survive across screens
@@ -111,7 +110,7 @@ The app uses two local Swift packages:
 - `VaultSecurity`
 - `VaultStorage`
 
-`VaultSecurity` provides encryption and authentication-related infrastructure.
+`VaultSecurity` provides encryption-related infrastructure.
 
 `VaultStorage` provides storage models and file import/storage operations.
 

@@ -3,14 +3,6 @@ import Observation
 import UniformTypeIdentifiers
 import VaultStorage
 
-struct CollectionSummary: Identifiable {
-    let id: String
-    let collection: Collection
-    let itemCount: Int
-
-    var name: String { collection.name }
-}
-
 /// Owns home screen state, search, and import-flow decisions for the vault landing experience.
 @MainActor
 @Observable

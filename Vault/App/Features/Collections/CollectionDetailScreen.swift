@@ -2,40 +2,23 @@ import SwiftUI
 import UniformTypeIdentifiers
 import VaultStorage
 
+/// Renders collection detail UI and forwards collection/file actions to `CollectionDetailState`.
 struct CollectionDetailScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
 
-    @State private var currentCollection: Collection
-    @State private var items: [VaultItem] = []
-    @State private var searchText = ""
-    @State private var errorMessage: String?
-    @State private var isShowingCollectionInfo = false
-    @State private var isShowingRenamePrompt = false
-    @State private var renamedCollectionName = ""
-    @State private var isShowingDeleteConfirmation = false
-    @State private var fileInteractions = VaultFileInteractionState()
-    @State private var itemPendingDeletion: VaultItem?
-    @State private var isShowingImportPicker = false
+    @State private var state: CollectionDetailState
 
     init(collection: Collection) {
-        _currentCollection = State(initialValue: collection)
-    }
-
-    private var filteredItems: [VaultItem] {
-        guard !searchText.isEmpty else {
-            return items
-        }
-
-        return items.filter { $0.displayName.localizedCaseInsensitiveContains(searchText) }
+        _state = State(initialValue: CollectionDetailState(collection: collection))
     }
 
     private var isShowingCollectionError: Binding<Bool> {
         Binding(
-            get: { errorMessage != nil },
+            get: { state.errorMessage != nil },
             set: { isPresented in
                 if !isPresented {
-                    errorMessage = nil
+                    state.dismissError()
                 }
             }
         )
@@ -43,10 +26,10 @@ struct CollectionDetailScreen: View {
 
     private var isShowingDeleteFileConfirmation: Binding<Bool> {
         Binding(
-            get: { itemPendingDeletion != nil },
+            get: { state.itemPendingDeletion != nil },
             set: { isPresented in
                 if !isPresented {
-                    itemPendingDeletion = nil
+                    state.dismissPendingDeletion()
                 }
             }
         )
@@ -54,28 +37,19 @@ struct CollectionDetailScreen: View {
 
     private var isShowingFileError: Binding<Bool> {
         Binding(
-            get: { fileInteractions.errorMessage != nil },
+            get: { state.fileInteractions.errorMessage != nil },
             set: { isPresented in
                 if !isPresented {
-                    fileInteractions.errorMessage = nil
+                    state.dismissFileError()
                 }
             }
         )
     }
 
-    private var currentPreviewIndex: Int? {
-        guard let preview = appState.collectionPreview,
-              preview.collectionID == currentCollection.id else {
-            return nil
-        }
-
-        return items.firstIndex { $0.id == preview.itemID }
-    }
-
     private var isShowingPreview: Binding<Bool> {
         Binding(
             get: {
-                currentPreviewIndex != nil
+                state.currentPreviewIndex(preview: appState.collectionPreview) != nil
             },
             set: { isPresented in
                 if !isPresented {
@@ -86,31 +60,32 @@ struct CollectionDetailScreen: View {
     }
 
     var body: some View {
-        let displayedItems = filteredItems
+        @Bindable var state = state
+
+        let displayedItems = state.filteredItems
 
         let baseView = AnyView(
             List {
                 filesSection(displayedItems)
             }
-            .navigationTitle(currentCollection.name)
+            .navigationTitle(state.currentCollection.name)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button("Import File") {
-                            isShowingImportPicker = true
+                            state.isShowingImportPicker = true
                         }
 
                         Button("Rename Collection") {
-                            renamedCollectionName = currentCollection.name
-                            isShowingRenamePrompt = true
+                            state.beginRenameCollection()
                         }
 
                         Button("Collection Info") {
-                            isShowingCollectionInfo = true
+                            state.isShowingCollectionInfo = true
                         }
 
                         Button("Delete Collection", role: .destructive) {
-                            isShowingDeleteConfirmation = true
+                            state.isShowingDeleteConfirmation = true
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -118,17 +93,17 @@ struct CollectionDetailScreen: View {
                 }
             }
             .overlay {
-                if fileInteractions.isPreparingFile {
+                if state.fileInteractions.isPreparingFile {
                     ProgressView("Working…")
                         .padding()
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-                } else if displayedItems.isEmpty, errorMessage == nil {
+                } else if displayedItems.isEmpty, state.errorMessage == nil {
                     ContentUnavailableView(
-                        searchText.isEmpty ? "No Files" : "No Results",
+                        state.searchText.isEmpty ? "No Files" : "No Results",
                         systemImage: "doc",
                         description: Text(
-                            searchText.isEmpty
-                                ? "Files imported into \(currentCollection.name) will appear here."
+                            state.searchText.isEmpty
+                                ? "Files imported into \(state.currentCollection.name) will appear here."
                                 : "Try a different search term."
                         )
                     )
@@ -137,13 +112,8 @@ struct CollectionDetailScreen: View {
         )
 
         let importConfiguredView = AnyView(
-            baseView.fileImporter(isPresented: $isShowingImportPicker, allowedContentTypes: [.item]) { result in
-                switch result {
-                case let .success(url):
-                    importFile(from: url)
-                case let .failure(error):
-                    errorMessage = error.localizedDescription
-                }
+            baseView.fileImporter(isPresented: $state.isShowingImportPicker, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+                state.handleImportResult(result)
             }
         )
 
@@ -151,15 +121,15 @@ struct CollectionDetailScreen: View {
             importConfiguredView.alert("Collection Unavailable", isPresented: isShowingCollectionError) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(errorMessage ?? "")
+                Text(state.errorMessage ?? "")
             }
         )
 
         let renameAlertView = AnyView(
-            errorAlertView.alert("Rename Collection", isPresented: $isShowingRenamePrompt) {
-                TextField("Collection Name", text: $renamedCollectionName)
+            errorAlertView.alert("Rename Collection", isPresented: $state.isShowingRenamePrompt) {
+                TextField("Collection Name", text: $state.renamedCollectionName)
                 Button("Save") {
-                    renameCollection()
+                    state.renameCollection()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -168,9 +138,11 @@ struct CollectionDetailScreen: View {
         )
 
         let deleteCollectionAlertView = AnyView(
-            renameAlertView.alert("Delete Collection?", isPresented: $isShowingDeleteConfirmation) {
+            renameAlertView.alert("Delete Collection?", isPresented: $state.isShowingDeleteConfirmation) {
                 Button("Delete", role: .destructive) {
-                    deleteCollection()
+                    state.deleteCollection {
+                        dismiss()
+                    }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -179,9 +151,9 @@ struct CollectionDetailScreen: View {
         )
 
         let deleteFileAlertView = AnyView(
-            deleteCollectionAlertView.alert("Delete File?", isPresented: isShowingDeleteFileConfirmation, presenting: itemPendingDeletion) { item in
+            deleteCollectionAlertView.alert("Delete File?", isPresented: isShowingDeleteFileConfirmation, presenting: state.itemPendingDeletion) { _ in
                 Button("Delete", role: .destructive) {
-                    delete(item)
+                    state.deletePendingItem()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
@@ -190,16 +162,16 @@ struct CollectionDetailScreen: View {
         )
 
         let infoSheetView = AnyView(
-            deleteFileAlertView.sheet(isPresented: $isShowingCollectionInfo) {
+            deleteFileAlertView.sheet(isPresented: $state.isShowingCollectionInfo) {
                 collectionInfoSheet
             }
         )
 
         let previewView = AnyView(
             infoSheetView.fullScreenCover(isPresented: isShowingPreview) {
-                if let previewStartIndex = currentPreviewIndex {
+                if let previewStartIndex = state.currentPreviewIndex(preview: appState.collectionPreview) {
                     CollectionFilePreviewScreen(
-                        items: items,
+                        items: state.items,
                         startIndex: previewStartIndex,
                         onDismiss: {
                             appState.dismissCollectionPreview()
@@ -219,7 +191,7 @@ struct CollectionDetailScreen: View {
         )
 
         let sharingView = AnyView(
-            previewView.sheet(item: $fileInteractions.shareDocument) { document in
+            previewView.sheet(item: $state.fileInteractions.shareDocument) { document in
                 ActivityView(activityItems: [document.url])
             }
         )
@@ -228,23 +200,17 @@ struct CollectionDetailScreen: View {
             sharingView.alert("File Unavailable", isPresented: isShowingFileError) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(fileInteractions.errorMessage ?? "")
+                Text(state.fileInteractions.errorMessage ?? "")
             }
-            .searchable(text: $searchText)
+            .searchable(text: $state.searchText)
             .onAppear {
-                loadItems()
+                state.loadItems()
             }
-            .task(id: currentCollection.id) {
-                loadItems()
+            .task(id: state.currentCollection.id) {
+                state.loadItems()
             }
-            .onChange(of: items) { _, updatedItems in
-                guard let preview = appState.collectionPreview,
-                      preview.collectionID == currentCollection.id,
-                      !updatedItems.contains(where: { $0.id == preview.itemID }) else {
-                    return
-                }
-
-                appState.dismissCollectionPreview()
+            .onChange(of: state.items) { _, _ in
+                state.updatePreviewAvailability(in: appState)
             }
         )
     }
@@ -264,9 +230,9 @@ struct CollectionDetailScreen: View {
         NavigationStack {
             List {
                 Section {
-                    LabeledContent("Collection", value: currentCollection.name)
-                    LabeledContent("Files", value: "\(items.count)")
-                    LabeledContent("Created", value: currentCollection.createdAt.formatted(date: .abbreviated, time: .omitted))
+                    LabeledContent("Collection", value: state.currentCollection.name)
+                    LabeledContent("Files", value: "\(state.items.count)")
+                    LabeledContent("Created", value: state.currentCollection.createdAt.formatted(date: .abbreviated, time: .omitted))
                 }
 
                 Section {
@@ -279,87 +245,22 @@ struct CollectionDetailScreen: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
-                        isShowingCollectionInfo = false
+                        state.dismissCollectionInfo()
                     }
                 }
             }
         }
     }
 
-    private func loadItems() {
-        do {
-            let storageService = try VaultStorageService(
-                appGroupIdentifier: VaultSharedConfiguration.appGroupIdentifier
-            )
-            if let refreshedCollection = try storageService.collection(id: currentCollection.id) {
-                currentCollection = refreshedCollection
-            }
-
-            items = try storageService.listItems()
-                .filter { $0.collectionId == currentCollection.id }
-                .sorted { $0.createdAt > $1.createdAt }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func importFile(from url: URL) {
-        do {
-            let importService = try VaultImportService()
-            _ = try importService.importFile(from: url, collectionID: currentCollection.id)
-            loadItems()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func openPreview(for item: VaultItem) {
-        appState.presentCollectionPreview(collectionID: currentCollection.id, itemID: item.id)
-    }
-
     @ViewBuilder
     private func fileRow(_ item: VaultItem) -> some View {
         CollectionFileRowView(
             item: item,
-            onOpen: { openPreview(for: item) },
+            onOpen: { state.openPreview(in: appState, item: item) },
             onInfo: { appState.navigationPath.append(AppRoute.file(item)) },
-            onShare: { fileInteractions.share(item) },
-            onDelete: { itemPendingDeletion = item }
+            onShare: { state.fileInteractions.share(item) },
+            onDelete: { state.confirmDelete(item) }
         )
-    }
-
-    private func renameCollection() {
-        do {
-            let storageService = try VaultStorageService(
-                appGroupIdentifier: VaultSharedConfiguration.appGroupIdentifier
-            )
-            currentCollection = try storageService.renameCollection(id: currentCollection.id, newName: renamedCollectionName)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func deleteCollection() {
-        do {
-            let storageService = try VaultStorageService(
-                appGroupIdentifier: VaultSharedConfiguration.appGroupIdentifier
-            )
-            try storageService.deleteCollection(id: currentCollection.id)
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func delete(_ item: VaultItem) {
-        do {
-            let fileAccessService = try VaultFileAccessService()
-            try fileAccessService.delete(item: item)
-            itemPendingDeletion = nil
-            loadItems()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
     }
 }
 

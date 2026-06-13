@@ -50,7 +50,7 @@ struct HomeScreen: View {
                     Label("Import File", systemImage: "square.and.arrow.down")
                 }
             } header: {
-                SectionHeader(title: "Import")
+                HomeSectionHeader(title: "Import")
             }
 
             if !state.filteredCollectionSummaries.isEmpty {
@@ -145,7 +145,7 @@ struct HomeScreen: View {
             }
         } header: {
             HStack {
-                SectionHeader(title: "Collections")
+                HomeSectionHeader(title: "Collections")
                 Spacer()
                 NavigationLink(value: AppRoute.collections) {
                     HStack(spacing: 4) {
@@ -182,5 +182,16 @@ struct HomeScreen: View {
 #Preview {
     NavigationStack {
         HomeScreen()
+    }
+}
+
+private struct HomeSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.headline)
+            .textCase(.uppercase)
+            .foregroundStyle(.secondary)
     }
 }

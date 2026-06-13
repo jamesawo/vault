@@ -3,6 +3,9 @@ import VaultStorage
 
 /// Renders the home dashboard and forwards search and import actions to `HomeState`.
 struct HomeScreen: View {
+    @ScaledMetric(relativeTo: .title3) private var collectionIconSize = 16
+    @ScaledMetric(relativeTo: .caption) private var countIconSize = 10
+
     @State private var state = HomeState()
 
     private var isShowingImportError: Binding<Bool> {
@@ -48,7 +51,7 @@ struct HomeScreen: View {
                     state.startImportFlow()
                 } label: {
                     Label("Import File", systemImage: "square.and.arrow.down")
-                }
+                        .font(.system(size: collectionIconSize, weight: .regular))               }
             } header: {
                 HomeSectionHeader(title: "Import")
             }
@@ -171,9 +174,9 @@ struct HomeScreen: View {
         NavigationLink(value: AppRoute.collection(collection)) {
             HStack(spacing: 16) {
                 Image(systemName: "folder")
-                    .font(.system(size: 28, weight: .regular))
+                    .font(.system(size: collectionIconSize, weight: .regular))
                     .foregroundStyle(.blue)
-                    .frame(width: 36, height: 36)
+                    .frame(width: collectionIconSize + 8, height: collectionIconSize + 8)
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(summary.name)
@@ -189,10 +192,6 @@ struct HomeScreen: View {
                 }
 
                 Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
             }
         }
         .buttonStyle(.plain)
@@ -200,10 +199,12 @@ struct HomeScreen: View {
 
     @ViewBuilder
     private func countLabel(systemName: String, count: Int) -> some View {
-        Label {
-            Text("\(count)")
-        } icon: {
+        HStack(spacing: 6) {
             Image(systemName: systemName)
+                .font(.system(size: countIconSize, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            Text("\(count)")
         }
         .font(.subheadline)
         .foregroundStyle(.secondary)

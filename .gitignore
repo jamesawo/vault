@@ -2,9 +2,15 @@
 # macOS
 .DS_Store
 
+# Local workspace files
+.tmp/
+.agent/
+ReviewNotes.local.md
+
 # Xcode
 build/
 DerivedData/
+*.xcuserstate
 *.pbxuser
 !default.pbxuser
 *.mode1v3

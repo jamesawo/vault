@@ -165,9 +165,8 @@ struct CollectionFilePreviewScreen: View {
         defer { isPreparingFile = false }
 
         do {
-            let fileAccessService = try VaultFileAccessService()
-            let fileURL = try fileAccessService.decryptedFileURL(for: currentItem)
-            currentDocument = PresentedDocument(item: currentItem, url: fileURL)
+            let fileDetailService = try FileDetailService()
+            currentDocument = try fileDetailService.preparedDocument(for: currentItem)
             errorMessage = nil
         } catch {
             currentDocument = nil

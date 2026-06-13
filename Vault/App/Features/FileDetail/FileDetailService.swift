@@ -2,7 +2,8 @@ import Foundation
 import VaultSecurity
 import VaultStorage
 
-struct VaultFileAccessService {
+/// Executes file detail operations such as loading metadata, preparing decrypted files, and deleting items.
+struct FileDetailService {
     private let storageService: VaultStorageService
     private let encryptionService: EncryptionService
     private let fileManager: FileManager
@@ -22,7 +23,11 @@ struct VaultFileAccessService {
         self.fileManager = fileManager
     }
 
-    func decryptedFileURL(for item: VaultItem) throws -> URL {
+    func collectionName(for item: VaultItem) throws -> String {
+        try storageService.collection(id: item.collectionId)?.name ?? "Unknown"
+    }
+
+    func preparedDocument(for item: VaultItem) throws -> PresentedDocument {
         let encryptedFileURL = storageService.filesDirectoryURL.appendingPathComponent(item.encryptedFileName)
         let payloadData = try Data(contentsOf: encryptedFileURL)
         let payload = try decoder.decode(EncryptedPayload.self, from: payloadData)
@@ -39,7 +44,7 @@ struct VaultFileAccessService {
         }
 
         try decryptedData.write(to: destinationURL, options: .atomic)
-        return destinationURL
+        return PresentedDocument(item: item, url: destinationURL)
     }
 
     func delete(item: VaultItem) throws {

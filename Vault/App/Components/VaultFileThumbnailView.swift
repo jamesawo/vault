@@ -58,8 +58,8 @@ struct VaultFileThumbnailView: View {
 
     private func loadThumbnail() async {
         do {
-            let fileAccessService = try VaultFileAccessService()
-            let fileURL = try fileAccessService.decryptedFileURL(for: item)
+            let fileDetailService = try FileDetailService()
+            let fileURL = try fileDetailService.preparedDocument(for: item).url
             let scale = await MainActor.run { UIScreen.main.scale }
             let request = QLThumbnailGenerator.Request(
                 fileAt: fileURL,

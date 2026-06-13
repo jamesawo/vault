@@ -2,20 +2,19 @@ import SwiftUI
 import UniformTypeIdentifiers
 import VaultStorage
 
+/// Renders file metadata and forwards open, share, and delete actions to `FileDetailState`.
 struct FileDetailScreen: View {
     @Environment(AppState.self) private var appState
-
-    let item: VaultItem
-
     @Environment(\.dismiss) private var dismiss
 
-    @State private var collectionName = "Unknown"
-    @State private var fileInteractions = VaultFileInteractionState()
-    @State private var errorMessage: String?
-    @State private var isShowingDeleteConfirmation = false
+    @State private var state: FileDetailState
+
+    init(item: VaultItem) {
+        _state = State(initialValue: FileDetailState(item: item))
+    }
 
     private var originalType: String {
-        let fileExtension = URL(fileURLWithPath: item.displayName).pathExtension
+        let fileExtension = URL(fileURLWithPath: state.item.displayName).pathExtension
         guard !fileExtension.isEmpty else {
             return "Unknown"
         }
@@ -24,16 +23,18 @@ struct FileDetailScreen: View {
     }
 
     private var fileSize: String {
-        ByteCountFormatter.string(fromByteCount: Int64(item.size), countStyle: .file)
+        ByteCountFormatter.string(fromByteCount: Int64(state.item.size), countStyle: .file)
     }
 
     var body: some View {
+        @Bindable var state = state
+
         List {
             Section {
-                LabeledContent("Display Name", value: item.displayName)
-                LabeledContent("Collection", value: collectionName)
+                LabeledContent("Display Name", value: state.item.displayName)
+                LabeledContent("Collection", value: state.collectionName)
                 LabeledContent("File Size", value: fileSize)
-                LabeledContent("Created Date", value: item.createdAt.formatted(date: .abbreviated, time: .shortened))
+                LabeledContent("Created Date", value: state.item.createdAt.formatted(date: .abbreviated, time: .shortened))
                 LabeledContent("Original Type", value: originalType)
             } header: {
                 SectionHeader(title: "Details")
@@ -41,53 +42,54 @@ struct FileDetailScreen: View {
 
             Section {
                 Button("Open File") {
-                    fileInteractions.open(item)
+                    state.openFile()
                 }
-                .disabled(fileInteractions.isPreparingFile)
+                .disabled(state.isPreparingFile)
 
                 Button("Share File") {
-                    fileInteractions.share(item)
+                    state.shareFile()
                 }
-                .disabled(fileInteractions.isPreparingFile)
+                .disabled(state.isPreparingFile)
 
                 Button("Delete File", role: .destructive) {
-                    isShowingDeleteConfirmation = true
+                    state.isShowingDeleteConfirmation = true
                 }
             } header: {
                 SectionHeader(title: "Actions")
             }
         }
-        .navigationTitle(item.displayName)
+        .navigationTitle(state.item.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .overlay {
-            if fileInteractions.isPreparingFile {
+            if state.isPreparingFile {
                 ProgressView("Working…")
                     .padding()
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
             }
         }
         .alert("File Unavailable", isPresented: Binding(
-            get: { (errorMessage ?? fileInteractions.errorMessage) != nil },
+            get: { state.errorMessage != nil },
             set: { isPresented in
                 if !isPresented {
-                    errorMessage = nil
-                    fileInteractions.errorMessage = nil
+                    state.dismissError()
                 }
             }
         )) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(errorMessage ?? fileInteractions.errorMessage ?? "")
+            Text(state.errorMessage ?? "")
         }
-        .alert("Delete File?", isPresented: $isShowingDeleteConfirmation) {
+        .alert("Delete File?", isPresented: $state.isShowingDeleteConfirmation) {
             Button("Delete", role: .destructive) {
-                deleteFile()
+                state.deleteFile {
+                    dismiss()
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will permanently remove the file from Vault.")
         }
-        .fullScreenCover(item: $fileInteractions.previewDocument) { previewDocument in
+        .fullScreenCover(item: $state.previewDocument) { previewDocument in
             QuickLookPreview(
                 item: previewDocument.item,
                 url: previewDocument.url,
@@ -96,35 +98,14 @@ struct FileDetailScreen: View {
                     appState.rememberPlaybackPosition(itemID: previewDocument.item.id, seconds: seconds)
                 }
             ) {
-                fileInteractions.previewDocument = nil
+                state.previewDocument = nil
             }
         }
-        .sheet(item: $fileInteractions.shareDocument) { document in
+        .sheet(item: $state.shareDocument) { document in
             ActivityView(activityItems: [document.url])
         }
-        .task(id: item.collectionId) {
-            loadCollectionName()
-        }
-    }
-
-    private func loadCollectionName() {
-        do {
-            let storageService = try VaultStorageService(
-                appGroupIdentifier: VaultSharedConfiguration.appGroupIdentifier
-            )
-            collectionName = try storageService.collection(id: item.collectionId)?.name ?? "Unknown"
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func deleteFile() {
-        do {
-            let fileAccessService = try VaultFileAccessService()
-            try fileAccessService.delete(item: item)
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
+        .task(id: state.item.collectionId) {
+            state.loadCollectionName()
         }
     }
 }

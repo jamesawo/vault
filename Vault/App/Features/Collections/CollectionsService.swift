@@ -72,8 +72,8 @@ struct CollectionsService {
     }
 
     func deleteItem(_ item: VaultItem) throws {
-        let fileAccessService = try VaultFileAccessService()
-        try fileAccessService.delete(item: item)
+        let fileDetailService = try FileDetailService()
+        try fileDetailService.delete(item: item)
     }
 
     private func storageService() throws -> VaultStorageService {

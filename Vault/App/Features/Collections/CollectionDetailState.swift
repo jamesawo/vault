@@ -2,6 +2,30 @@ import Foundation
 import Observation
 import VaultStorage
 
+@MainActor
+@Observable
+final class CollectionFileInteractionState {
+    var shareDocument: PresentedDocument?
+    var errorMessage: String?
+    var isPreparingFile = false
+
+    func share(_ item: VaultItem) {
+        guard !isPreparingFile else {
+            return
+        }
+
+        isPreparingFile = true
+        defer { isPreparingFile = false }
+
+        do {
+            let fileDetailService = try FileDetailService()
+            shareDocument = try fileDetailService.preparedDocument(for: item)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
 /// Owns collection detail state, file list behavior, and collection-level actions.
 @MainActor
 @Observable
@@ -14,7 +38,7 @@ final class CollectionDetailState {
     var isShowingRenamePrompt = false
     var renamedCollectionName = ""
     var isShowingDeleteConfirmation = false
-    var fileInteractions = VaultFileInteractionState()
+    var fileInteractions = CollectionFileInteractionState()
     var itemPendingDeletion: VaultItem?
     var isShowingImportPicker = false
 

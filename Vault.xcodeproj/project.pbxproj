@@ -13,16 +13,6 @@
 		A18000032FD9B1000017A502 /* VaultStorage in Frameworks */ = {isa = PBXBuildFile; productRef = A17F00022FD9B1000017A502 /* VaultStorage */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		A18100012FD9B1000017A502 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				App/DesignSystem/README.md,
-			);
-			target = 1A1F968E2FD9AFBF0017A502 /* Vault */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXContainerItemProxy section */
 		A18000152FD9B1000017A502 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,11 +42,21 @@
 		A18000002FD9B1000017A502 /* VaultShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = VaultShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A18100012FD9B1000017A502 /* Exceptions for "Vault" folder in "Vault" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				App/DesignSystem/README.md,
+			);
+			target = 1A1F968E2FD9AFBF0017A502 /* Vault */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		1A1F96912FD9AFBF0017A502 /* Vault */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				A18100012FD9B1000017A502 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+				A18100012FD9B1000017A502 /* Exceptions for "Vault" folder in "Vault" target */,
 			);
 			path = Vault;
 			sourceTree = "<group>";

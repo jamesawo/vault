@@ -25,13 +25,7 @@ struct AppScreen: View {
                     }
             }
         } else {
-            UnlockScreen(
-                message: appState.authenticationMessage,
-                isAuthenticating: appState.isAuthenticating,
-                authenticationTrigger: appState.authenticationTrigger,
-                unlockMethod: appState.unlockMethod,
-                onUnlock: { await appState.authenticate() }
-            )
+            UnlockScreen(state: appState.unlockState)
         }
     }
 }

@@ -1,6 +1,5 @@
 import Observation
 import SwiftUI
-import VaultSecurity
 
 struct CollectionPreviewState: Equatable {
     var collectionID: String
@@ -14,82 +13,30 @@ final class AppState {
     var navigationPath = NavigationPath()
     var collectionPreview: CollectionPreviewState?
     var isUnlocked = false
-    var authenticationMessage: String?
-    var isAuthenticating = false
-    var authenticationTrigger = 0
-    var unlockMethod: AuthenticationService.UnlockMethod = .standard
+    let unlockState: UnlockState
 
     @ObservationIgnored
     private var playbackPositions: [String: Double] = [:]
 
-    private let authenticationService = AuthenticationService()
-    private var authenticationAttempt = 0
-
     init() {
-        unlockMethod = authenticationService.preferredUnlockMethod()
-    }
-
-    func authenticate() async {
-        guard !isAuthenticating, !isUnlocked else {
-            return
-        }
-
-        authenticationAttempt += 1
-        let currentAttempt = authenticationAttempt
-
-        authenticationMessage = nil
-        isAuthenticating = true
-
-        defer {
-            if currentAttempt == authenticationAttempt {
-                isAuthenticating = false
-            }
-        }
-
-        do {
-            try await authenticationService.authenticate()
-
-            guard currentAttempt == authenticationAttempt else {
-                return
-            }
-
-            isUnlocked = true
-        } catch let authenticationError as AuthenticationService.AuthenticationError {
-            guard currentAttempt == authenticationAttempt else {
-                return
-            }
-
-            isUnlocked = false
-            switch authenticationError {
-            case .cancelled:
-                authenticationMessage = nil
-            case .failed, .unavailable:
-                authenticationMessage = authenticationError.errorDescription
-            }
-        } catch {
-            guard currentAttempt == authenticationAttempt else {
-                return
-            }
-
-            isUnlocked = false
-            authenticationMessage = error.localizedDescription
+        let unlockState = UnlockState()
+        self.unlockState = unlockState
+        unlockState.onUnlock = { [weak self] in
+            self?.isUnlocked = true
         }
     }
 
     func lock() {
-        authenticationAttempt += 1
-
         isUnlocked = false
-        isAuthenticating = false
-        authenticationMessage = nil
+        unlockState.reset()
     }
 
     func sceneDidBecomeActive() {
-        guard !isUnlocked, !isAuthenticating else {
+        guard !isUnlocked else {
             return
         }
 
-        authenticationTrigger += 1
+        unlockState.requestAutomaticAuthentication()
     }
 
     func presentCollectionPreview(collectionID: String, itemID: String) {

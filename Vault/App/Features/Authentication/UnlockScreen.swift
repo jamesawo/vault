@@ -1,12 +1,8 @@
 import SwiftUI
-import VaultSecurity
 
+/// Renders the unlock experience and forwards user actions to `UnlockState`.
 struct UnlockScreen: View {
-    let message: String?
-    let isAuthenticating: Bool
-    let authenticationTrigger: Int
-    let unlockMethod: AuthenticationService.UnlockMethod
-    let onUnlock: () async -> Void
+    @Bindable var state: UnlockState
 
     var body: some View {
         VStack(spacing: 24) {
@@ -23,42 +19,36 @@ struct UnlockScreen: View {
 
             Button {
                 Task {
-                    await onUnlock()
+                    await state.authenticate()
                 }
             } label: {
-                if isAuthenticating {
+                if state.isAuthenticating {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                 } else {
-                    Text(unlockMethod == .faceID ? "Unlock with Face ID" : "Unlock")
+                    Text(state.unlockMethod == .faceID ? "Unlock with Face ID" : "Unlock")
                         .frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(isAuthenticating)
+            .disabled(state.isAuthenticating)
 
             Spacer()
         }
         .padding(24)
-        .task(id: authenticationTrigger) {
-            let trigger = authenticationTrigger
+        .task(id: state.authenticationTrigger) {
+            let trigger = state.authenticationTrigger
 
-            guard trigger > 0, !isAuthenticating, message == nil else {
+            guard trigger > 0, !state.isAuthenticating, state.message == nil else {
                 return
             }
 
-            await onUnlock()
+            await state.authenticate()
         }
     }
 }
 
 #Preview {
-    UnlockScreen(
-        message: nil,
-        isAuthenticating: false,
-        authenticationTrigger: 1,
-        unlockMethod: .faceID,
-        onUnlock: {}
-    )
+    UnlockScreen(state: UnlockState())
 }

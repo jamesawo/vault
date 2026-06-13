@@ -1,35 +1,36 @@
 import LocalAuthentication
 
-public struct AuthenticationService: Sendable {
-    public enum UnlockMethod: Sendable, Equatable {
+/// Performs device authentication for the unlock flow and reports the available unlock method.
+struct AuthenticationService: Sendable {
+    enum UnlockMethod: Sendable, Equatable {
         case faceID
         case standard
     }
 
-    public enum AuthenticationError: LocalizedError, Equatable {
+    enum AuthenticationError: LocalizedError, Equatable {
         case unavailable(reason: String)
         case failed(reason: String)
         case cancelled
 
-        public var errorDescription: String? {
+        var errorDescription: String? {
             switch self {
             case let .unavailable(reason):
-                return reason
+                reason
             case let .failed(reason):
-                return reason
+                reason
             case .cancelled:
-                return "Authentication was cancelled."
+                "Authentication was cancelled."
             }
         }
     }
 
     private let localizedReason: String
 
-    public init(localizedReason: String = "Authenticate to unlock your vault.") {
+    nonisolated init(localizedReason: String = "Authenticate to unlock your vault.") {
         self.localizedReason = localizedReason
     }
 
-    public func preferredUnlockMethod() -> UnlockMethod {
+    nonisolated func preferredUnlockMethod() -> UnlockMethod {
         let context = LAContext()
         var evaluationError: NSError?
 
@@ -40,7 +41,7 @@ public struct AuthenticationService: Sendable {
         return context.biometryType == .faceID ? .faceID : .standard
     }
 
-    public func authenticate() async throws {
+    nonisolated func authenticate() async throws {
         let context = LAContext()
         var evaluationError: NSError?
 
@@ -64,7 +65,7 @@ public struct AuthenticationService: Sendable {
         }
     }
 
-    private func mapAvailabilityError(_ error: NSError?) -> AuthenticationError {
+    private nonisolated func mapAvailabilityError(_ error: NSError?) -> AuthenticationError {
         guard let error else {
             return .unavailable(reason: "Device authentication is not available on this device.")
         }
@@ -81,7 +82,7 @@ public struct AuthenticationService: Sendable {
         }
     }
 
-    private func mapEvaluationError(_ error: Error) -> AuthenticationError {
+    private nonisolated func mapEvaluationError(_ error: Error) -> AuthenticationError {
         let nsError = error as NSError
 
         guard let laErrorCode = laErrorCode(for: nsError) else {
@@ -108,7 +109,7 @@ public struct AuthenticationService: Sendable {
         }
     }
 
-    private func laErrorCode(for error: NSError) -> LAError.Code? {
+    private nonisolated func laErrorCode(for error: NSError) -> LAError.Code? {
         guard error.domain == LAError.errorDomain else {
             return nil
         }

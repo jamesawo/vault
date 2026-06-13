@@ -1,19 +1,16 @@
 import SwiftUI
 import VaultStorage
 
+/// Renders the home dashboard and forwards search and import actions to `HomeState`.
 struct HomeScreen: View {
     @State private var state = HomeState()
-    @State private var selectedImportCollectionID: String?
-    @State private var isShowingImportCollectionPicker = false
-    @State private var isShowingCreateCollectionPrompt = false
-    @State private var newCollectionName = ""
 
     private var isShowingImportError: Binding<Bool> {
         Binding(
             get: { state.importErrorMessage != nil },
             set: { isPresented in
                 if !isPresented {
-                    state.importErrorMessage = nil
+                    state.dismissImportError()
                 }
             }
         )
@@ -24,7 +21,7 @@ struct HomeScreen: View {
             get: { state.contentErrorMessage != nil },
             set: { isPresented in
                 if !isPresented {
-                    state.contentErrorMessage = nil
+                    state.dismissContentError()
                 }
             }
         )
@@ -35,18 +32,20 @@ struct HomeScreen: View {
             get: { state.successMessage != nil },
             set: { isPresented in
                 if !isPresented {
-                    state.successMessage = nil
+                    state.dismissSuccessMessage()
                 }
             }
         )
     }
 
     var body: some View {
+        @Bindable var state = state
+
         let baseView = AnyView(
             List {
             Section {
                 Button {
-                    startImportFlow()
+                    state.startImportFlow()
                 } label: {
                     Label("Import File", systemImage: "square.and.arrow.down")
                 }
@@ -87,27 +86,26 @@ struct HomeScreen: View {
             allowedContentTypes: state.allowedContentTypes,
             allowsMultipleSelection: true
         ) { result in
-            handleImportResult(result)
+            state.handleImportResult(result)
         }
-        .confirmationDialog("Choose Collection", isPresented: $isShowingImportCollectionPicker, titleVisibility: .visible) {
+        .confirmationDialog("Choose Collection", isPresented: $state.isShowingImportCollectionPicker, titleVisibility: .visible) {
             ForEach(state.collectionSummaries) { collection in
                 Button(collection.name) {
-                    selectedImportCollectionID = collection.id
-                    state.isImportPickerPresented = true
+                    state.chooseImportCollection(collection.id)
                 }
             }
 
             Button("Cancel", role: .cancel) {
-                selectedImportCollectionID = nil
+                state.cancelImportFlow()
             }
         }
-        .alert("Create Collection", isPresented: $isShowingCreateCollectionPrompt) {
-            TextField("Collection Name", text: $newCollectionName)
+        .alert("Create Collection", isPresented: $state.isShowingCreateCollectionPrompt) {
+            TextField("Collection Name", text: $state.newCollectionName)
             Button("Create") {
-                createCollectionAndContinueImport()
+                state.createCollectionAndContinueImport()
             }
             Button("Cancel", role: .cancel) {
-                newCollectionName = ""
+                state.newCollectionName = ""
             }
         } message: {
             Text("Create a collection before importing a file into Vault.")
@@ -138,39 +136,6 @@ struct HomeScreen: View {
             state.loadContent()
         }
         )
-    }
-
-    private func startImportFlow() {
-        if state.collectionSummaries.isEmpty {
-            newCollectionName = ""
-            isShowingCreateCollectionPrompt = true
-            return
-        }
-
-        isShowingImportCollectionPicker = true
-    }
-
-    private func handleImportResult(_ result: Result<[URL], Error>) {
-        switch result {
-        case let .success(urls):
-            guard let selectedImportCollectionID else {
-                state.importErrorMessage = "Choose a collection before importing."
-                return
-            }
-
-            guard !urls.isEmpty else {
-                state.importErrorMessage = "Choose at least one file to import."
-                return
-            }
-
-            Task {
-                await state.importFiles(from: urls, collectionID: selectedImportCollectionID)
-                self.selectedImportCollectionID = nil
-            }
-        case let .failure(error):
-            state.importErrorMessage = error.localizedDescription
-            selectedImportCollectionID = nil
-        }
     }
 
     private var collectionsSection: some View {
@@ -210,19 +175,6 @@ struct HomeScreen: View {
                 Text("\(summary.itemCount)")
                     .foregroundStyle(.secondary)
             }
-        }
-    }
-
-    private func createCollectionAndContinueImport() {
-        do {
-            let collection = try state.createCollection(named: newCollectionName)
-            newCollectionName = ""
-            selectedImportCollectionID = collection.id
-            Task { @MainActor in
-                state.isImportPickerPresented = true
-            }
-        } catch {
-            state.contentErrorMessage = error.localizedDescription
         }
     }
 }
